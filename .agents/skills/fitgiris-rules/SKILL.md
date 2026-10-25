@@ -24,3 +24,6 @@ Veritabanı sorguları (SQL) veya Go struct'ları yazarken tablo ve kolon adlar�
 - **Kilit Mekanizmaları:**
   - Kontenjan yönetimi ve fatura / sipariş sırası işlemleri için: `SELECT ... FOR UPDATE`
   - Bekleme listesi (waiting list / queue) tüketimi için: `SELECT ... FOR UPDATE SKIP LOCKED`
+
+### 4. FAZ ÖZET RAPORU DOKÜMANTASYONU (Phase Documentation)
+Her fazın kodlaması, test edilmesi ve commit atılması bittikten sonra, o fazda yapılan tüm teknik geliştirmeleri ve mimari kararları özetleyen bir Markdown dosyasını `docs/phase-{N}-summary.md` adıyla kaydet ve bu raporu da aynı commit'e dahil et.
