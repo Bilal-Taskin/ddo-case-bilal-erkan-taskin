@@ -65,10 +65,12 @@ func main() {
 	auditRepo := repository.NewPostgresAuditRepository(pool)
 	idempotencyRepo := repository.NewPostgresIdempotencyRepository(pool)
 	membershipRepo := repository.NewPostgresMembershipRepository(pool)
+	bookingRepo := repository.NewPostgresBookingRepository(pool)
 
 	// Services
 	authService := service.NewAuthService(userRepo, auditRepo, jwtManager)
 	membershipService := service.NewMembershipService(membershipRepo, userRepo, auditRepo)
+	bookingService := service.NewBookingService(bookingRepo, userRepo, auditRepo)
 
 	// Middlewares
 	authMiddleware := middleware.NewAuthMiddleware(jwtManager)
@@ -78,6 +80,7 @@ func main() {
 	healthHandler := handler.NewHealthHandler(pool)
 	authHandler := handler.NewAuthHandler(authService)
 	membershipHandler := handler.NewMembershipHandler(membershipService)
+	bookingHandler := handler.NewBookingHandler(bookingService)
 
 	// Router setup
 	r := chi.NewRouter()
@@ -149,6 +152,34 @@ func main() {
 			r.Get("/{id}/upgrade-quote", membershipHandler.UpgradeQuote)
 			r.Post("/{id}/upgrade", membershipHandler.Upgrade)
 			r.Post("/{id}/cancel", membershipHandler.Cancel)
+		})
+
+		// Class & Schedule Management, Bookings, Waitlist (Protected)
+		r.Route("/classes", func(r chi.Router) {
+			r.Use(authMiddleware.Authenticate)
+
+			// Schedules & Classes listing
+			r.Get("/", bookingHandler.ListClasses)
+			r.Get("/schedules", bookingHandler.ListSchedules)
+			r.Get("/schedules/{id}", bookingHandler.GetSchedule)
+
+			// Member personal bookings & waitlist
+			r.With(middleware.RequireRoles(domain.RoleMember)).Get("/my-bookings", bookingHandler.ListMyBookings)
+			r.With(middleware.RequireRoles(domain.RoleMember)).Get("/my-waitlist", bookingHandler.ListMyWaitlist)
+			r.With(middleware.RequireRoles(domain.RoleMember)).Post("/schedules/{id}/book", bookingHandler.BookClass)
+			r.With(middleware.RequireRoles(domain.RoleMember)).Post("/bookings/{id}/cancel", bookingHandler.CancelBooking)
+			r.With(middleware.RequireRoles(domain.RoleMember)).Post("/waitlist/{id}/cancel", bookingHandler.CancelWaitlist)
+
+			// Manager Only: Create class definition
+			r.With(middleware.RequireRoles(domain.RoleManager)).Post("/", bookingHandler.CreateClass)
+
+			// Manager & Trainer: Schedule sessions
+			r.With(middleware.RequireRoles(domain.RoleManager, domain.RoleTrainer)).Post("/schedules", bookingHandler.CreateSchedule)
+			r.With(middleware.RequireRoles(domain.RoleManager, domain.RoleTrainer, domain.RoleReception)).Get("/schedules/{id}/bookings", bookingHandler.ListScheduleBookings)
+			r.With(middleware.RequireRoles(domain.RoleManager, domain.RoleTrainer, domain.RoleReception)).Get("/schedules/{id}/waitlist", bookingHandler.ListScheduleWaitlist)
+
+			// Attendance marking: Trainer, Reception, Manager
+			r.With(middleware.RequireRoles(domain.RoleTrainer, domain.RoleReception, domain.RoleManager)).Post("/schedules/{id}/attendance", bookingHandler.MarkAttendance)
 		})
 
 		// Protected RBAC Verification Routes
