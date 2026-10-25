@@ -10,6 +10,9 @@ RUN go mod download
 
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o /app/fitgiris-api ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o /app/fitgiris-verify ./cmd/verify
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o /app/fitgiris-seed ./cmd/seed
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o /app/fitgiris-load ./cmd/load
 
 # Final runtime stage
 FROM alpine:3.19
@@ -22,6 +25,9 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /home/appuser
 
 COPY --from=builder /app/fitgiris-api .
+COPY --from=builder /app/fitgiris-verify .
+COPY --from=builder /app/fitgiris-seed .
+COPY --from=builder /app/fitgiris-load .
 
 USER appuser
 

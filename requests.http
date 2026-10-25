@@ -1,0 +1,329 @@
+### FitGiriş Spor Salonu Yönetim Sistemi — REST API Elle Deneme Koleksiyonu
+### (VS Code REST Client eklentisi veya Postman ile doğrudan çalıştırılabilir)
+
+@baseUrl = http://localhost:8080/api/v1
+@healthUrl = http://localhost:8080/health
+
+###############################################################################
+# 1. SAĞLIK KONTROLÜ (HEALTH CHECK)
+###############################################################################
+
+### GET Health Check (Veritabanı bağlantısı ve sistem durumu)
+GET {{healthUrl}}
+
+### GET Ping
+GET {{baseUrl}}/ping
+
+###############################################################################
+# 2. KİMLİK DOĞRULAMA (AUTH) & DEMO HESAPLARI
+###############################################################################
+
+### 2.1. Giriş: Salon Müdürü (MANAGER)
+# @name loginManager
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "manager@fitgiris.com",
+  "password": "Password123!"
+}
+
+### Token Yakalama
+@managerToken = {{loginManager.response.body.data.tokens.access_token}}
+
+### 2.2. Giriş: Muhasebe (ACCOUNTANT)
+# @name loginAccountant
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "accountant@fitgiris.com",
+  "password": "Password123!"
+}
+
+@accountantToken = {{loginAccountant.response.body.data.tokens.access_token}}
+
+### 2.3. Giriş: Resepsiyon (RECEPTION)
+# @name loginReception
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "reception@fitgiris.com",
+  "password": "Password123!"
+}
+
+@receptionToken = {{loginReception.response.body.data.tokens.access_token}}
+
+### 2.4. Giriş: Eğitmen (TRAINER)
+# @name loginTrainer
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "trainer@fitgiris.com",
+  "password": "Password123!"
+}
+
+@trainerToken = {{loginTrainer.response.body.data.tokens.access_token}}
+
+### 2.5. Giriş: Üye (MEMBER)
+# @name loginMember
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "member@fitgiris.com",
+  "password": "Password123!"
+}
+
+@memberToken = {{loginMember.response.body.data.tokens.access_token}}
+
+### 2.6. Hatalı Parola Denemesi (401 Beklenir)
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "member@fitgiris.com",
+  "password": "YanlisParola123!"
+}
+
+### 2.7. Oturum Bilgisi (/auth/me)
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{memberToken}}
+
+###############################################################################
+# 3. ROL TABANLI YETKİLENDİRME (RBAC) TESTLERİ
+###############################################################################
+
+### 3.1. Yetkili Erişim: Müdür Paneline Müdür Erişimi (200 OK)
+GET {{baseUrl}}/manager/dashboard
+Authorization: Bearer {{managerToken}}
+
+### 3.2. Yetkisiz Erişim İhlali: Üyenin Müdür Paneline Erişimi (403 Forbidden)
+GET {{baseUrl}}/manager/dashboard
+Authorization: Bearer {{memberToken}}
+
+### 3.3. Eğitmen Programı: Eğitmen Erişimi (200 OK)
+GET {{baseUrl}}/trainer/schedule
+Authorization: Bearer {{trainerToken}}
+
+###############################################################################
+# 4. ÜYELİK PAKETLERİ VE YAŞAM DÖNGÜSÜ (F-1 & T-1)
+###############################################################################
+
+### 4.1. Paket Tiplerini Listele
+GET {{baseUrl}}/packages
+
+### 4.2. Yeni Paket Tipi Oluştur (Müdür Yetkisi)
+POST {{baseUrl}}/packages
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "name": "Öğrenci 3 Aylık Özel Paket",
+  "type": "DURATION",
+  "duration_months": 3,
+  "total_entries": 0,
+  "price_kurus": 300000,
+  "all_branches": false,
+  "max_freeze_days": 15
+}
+
+### 4.3. Üyelik Satın Al (Idempotent)
+# @name purchaseMembership
+POST {{baseUrl}}/memberships/purchase
+Authorization: Bearer {{memberToken}}
+Content-Type: application/json
+Idempotency-Key: idemp-http-purchase-001
+
+{
+  "package_type_id": "00000000-0000-0000-0003-000000000001",
+  "branch_id": "00000000-0000-0000-0002-000000000001",
+  "auto_renew": true,
+  "card_token": "tok_visa_4242"
+}
+
+@purchasedMembershipId = {{purchaseMembership.response.body.data.id}}
+
+### 4.4. Üyelikleri Listele
+GET {{baseUrl}}/memberships
+Authorization: Bearer {{memberToken}}
+
+### 4.5. Üyelik Dondur (FSM: ACTIVE -> FROZEN)
+POST {{baseUrl}}/memberships/{{purchasedMembershipId}}/freeze
+Authorization: Bearer {{memberToken}}
+Content-Type: application/json
+
+{
+  "freeze_days": 14,
+  "reason": "Yaz tatili seyahati"
+}
+
+### 4.6. Üyelik Çöz (FSM: FROZEN -> ACTIVE)
+POST {{baseUrl}}/memberships/{{purchasedMembershipId}}/unfreeze
+Authorization: Bearer {{memberToken}}
+
+### 4.7. Yükseltme Teklifi Al (Prorated Upgrade Quote)
+GET {{baseUrl}}/memberships/{{purchasedMembershipId}}/upgrade-quote?target_package_type_id=00000000-0000-0000-0003-000000000002
+Authorization: Bearer {{memberToken}}
+
+###############################################################################
+# 5. GRUP DERSİ REZERVASYONU VE EŞZAMANLILIK (F-4 & T-2)
+###############################################################################
+
+### 5.1. Ders Programını Listele
+GET {{baseUrl}}/classes/schedules
+Authorization: Bearer {{memberToken}}
+
+### 5.2. Derse Rezervasyon Yap
+POST {{baseUrl}}/classes/schedules/00000000-0000-0000-0008-000000000001/book
+Authorization: Bearer {{memberToken}}
+
+### 5.3. Rezervasyonlarımı Listele
+GET {{baseUrl}}/classes/my-bookings
+Authorization: Bearer {{memberToken}}
+
+### 5.4. Bekleme Listemi Listele
+GET {{baseUrl}}/classes/my-waitlist
+Authorization: Bearer {{memberToken}}
+
+###############################################################################
+# 6. TURNİKE GEÇİŞ KONTROLÜ VE ANTİ-PASSBACK (F-3 & T-3)
+###############################################################################
+
+### 6.1. Turnikeleri Listele
+GET {{baseUrl}}/turnstiles
+Authorization: Bearer {{receptionToken}}
+
+### 6.2. Turnike Girişi Değerlendir (Giriş Başarılı - GRANTED)
+POST {{baseUrl}}/turnstiles/access
+Authorization: Bearer {{receptionToken}}
+Content-Type: application/json
+
+{
+  "turnstile_id": "00000000-0000-0000-0002-000000000001",
+  "card_token": "CARD-DEMO-001"
+}
+
+### 6.3. Turnike İkinci Giriş Denemesi (Anti-Passback: 2 Saat İçinde Giriş Engellenir)
+POST {{baseUrl}}/turnstiles/access
+Authorization: Bearer {{receptionToken}}
+Content-Type: application/json
+
+{
+  "turnstile_id": "00000000-0000-0000-0002-000000000001",
+  "card_token": "CARD-DEMO-001"
+}
+
+### 6.4. Çevrimdışı Turnike Loglarını Senkronize Et
+POST {{baseUrl}}/turnstiles/sync-offline
+Authorization: Bearer {{receptionToken}}
+Content-Type: application/json
+
+{
+  "branch_id": "00000000-0000-0000-0002-000000000001",
+  "logs": [
+    {
+      "turnstile_id": "00000000-0000-0000-0002-000000000001",
+      "card_token": "CARD-OFFLINE-001",
+      "direction": "IN",
+      "status": "GRANTED",
+      "timestamp": "2026-10-25T14:30:00Z"
+    }
+  ]
+}
+
+###############################################################################
+# 7. FATURA, TAHSIILAT VE OTOMATİK YENİLEME (F-2 & T-4)
+###############################################################################
+
+### 7.1. Faturaları Listele
+GET {{baseUrl}}/billing/invoices
+Authorization: Bearer {{accountantToken}}
+
+### 7.2. Boşluksuz Sıralı Fatura Üret (SELECT ... FOR UPDATE)
+# @name createInvoice
+POST {{baseUrl}}/billing/invoices
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "member_id": "00000000-0000-0000-0001-000000000005",
+  "branch_id": "00000000-0000-0000-0002-000000000001",
+  "amount_kurus": 150000
+}
+
+@newInvoiceId = {{createInvoice.response.body.data.id}}
+
+### 7.3. Fatura Tahsilatı Yap (İdempotent)
+POST {{baseUrl}}/billing/invoices/{{newInvoiceId}}/pay
+Authorization: Bearer {{accountantToken}}
+Content-Type: application/json
+Idempotency-Key: idemp-http-pay-001
+
+{
+  "card_token": "tok_mastercard_5555"
+}
+
+### 7.4. Otomatik Yenileme Kuyruğunu İşle (3 Deneme Takvimi)
+POST {{baseUrl}}/billing/auto-renewals/process
+Authorization: Bearer {{accountantToken}}
+
+###############################################################################
+# 8. KİŞİSEL ANTRENMAN (PT) YÖNETİMİ (F-5)
+###############################################################################
+
+### 8.1. PT Paketi Satın Al (10 Seans)
+# @name buyPTPackage
+POST {{baseUrl}}/pt/packages
+Authorization: Bearer {{memberToken}}
+Content-Type: application/json
+
+{
+  "trainer_id": "00000000-0000-0000-0001-000000000004",
+  "total_sessions": 10,
+  "price_kurus": 900000
+}
+
+@ptPkgId = {{buyPTPackage.response.body.data.id}}
+
+### 8.2. PT Paketlerimi Listele
+GET {{baseUrl}}/pt/packages
+Authorization: Bearer {{memberToken}}
+
+### 8.3. PT Randevusu Al
+# @name bookPTApp
+POST {{baseUrl}}/pt/appointments
+Authorization: Bearer {{memberToken}}
+Content-Type: application/json
+
+{
+  "pt_package_id": "{{ptPkgId}}",
+  "branch_id": "00000000-0000-0000-0002-000000000001",
+  "start_time": "2026-10-27T15:00:00Z",
+  "end_time": "2026-10-27T16:00:00Z",
+  "notes": "Bölgesel Kol ve Karın Çalışması"
+}
+
+@ptAppId = {{bookPTApp.response.body.data.id}}
+
+### 8.4. PT Randevusunu Tamamla (Eğitmen / Müdür Yetkisi)
+POST {{baseUrl}}/pt/appointments/{{ptAppId}}/complete
+Authorization: Bearer {{trainerToken}}
+
+###############################################################################
+# 9. RAPORLAR VE ANALİTİK (F-6)
+###############################################################################
+
+### 9.1. Şube Bazlı Finansal Ciro Raporu
+GET {{baseUrl}}/reports/revenue?from=2026-01-01&to=2026-12-31
+Authorization: Bearer {{accountantToken}}
+
+### 9.2. Saatlik Salon Doluluk ve Yoğunluk Grafiği
+GET {{baseUrl}}/reports/occupancy?date=2026-10-25
+Authorization: Bearer {{managerToken}}
+
+### 9.3. Eğitmen Performans ve Katılım Raporu
+GET {{baseUrl}}/reports/trainers?from=2026-01-01&to=2026-12-31
+Authorization: Bearer {{managerToken}}

@@ -74,6 +74,22 @@ services:
     networks:
       - fitgiris-net
 
+  verify:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fitgiris-verify
+    profiles:
+      - verify
+    environment:
+      API_URL: http://backend:8080
+    entrypoint: ["./fitgiris-verify"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - fitgiris-net
+
 volumes:
   pgdata:
 

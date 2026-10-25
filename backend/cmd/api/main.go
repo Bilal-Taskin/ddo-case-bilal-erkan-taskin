@@ -57,6 +57,22 @@ func main() {
 	}
 	slog.Info("Veritabani migrasyonlari kontrol edildi ve guncellendi")
 
+	// Automatic initial seeding (proje.md Section 3 requirement)
+	var branchCount int
+	_ = pool.QueryRow(ctx, "SELECT COUNT(*) FROM branches").Scan(&branchCount)
+	if branchCount == 0 {
+		slog.Info("Ilk calisma tespit edildi, otomatik seed islemi baslatiliyor (5 sube, 20.000 uye, tohum=42)...")
+		if err := database.SeedDatabase(ctx, pool, database.SeedOptions{
+			SeedValue:   42,
+			MemberCount: 20000,
+			Reset:       false,
+		}); err != nil {
+			slog.Error("Otomatik seed islemi hatasi", "error", err)
+		} else {
+			slog.Info("Otomatik seed islemi basariyla tamamlandi")
+		}
+	}
+
 	// Platform Services & Security
 	jwtManager := security.NewJWTManager(cfg.JWTSecret)
 
@@ -68,6 +84,8 @@ func main() {
 	bookingRepo := repository.NewPostgresBookingRepository(pool)
 	turnstileRepo := repository.NewPostgresTurnstileRepository(pool)
 	billingRepo := repository.NewPostgresBillingRepository(pool)
+	ptRepo := repository.NewPostgresPTRepository(pool)
+	reportRepo := repository.NewPostgresReportRepository(pool)
 
 	// Platform Services & Mock Providers
 	paymentProv := service.NewMockPaymentProvider()
@@ -78,6 +96,8 @@ func main() {
 	bookingService := service.NewBookingService(bookingRepo, userRepo, auditRepo)
 	turnstileService := service.NewTurnstileService(turnstileRepo, userRepo, auditRepo)
 	billingService := service.NewBillingService(billingRepo, membershipRepo, userRepo, auditRepo, paymentProv)
+	ptService := service.NewPTService(ptRepo, userRepo, auditRepo)
+	reportService := service.NewReportService(reportRepo)
 
 	// Middlewares
 	authMiddleware := middleware.NewAuthMiddleware(jwtManager)
@@ -90,6 +110,8 @@ func main() {
 	bookingHandler := handler.NewBookingHandler(bookingService)
 	turnstileHandler := handler.NewTurnstileHandler(turnstileService)
 	billingHandler := handler.NewBillingHandler(billingService)
+	ptHandler := handler.NewPTHandler(ptService)
+	reportHandler := handler.NewReportHandler(reportService)
 
 	// Router setup
 	r := chi.NewRouter()
@@ -223,6 +245,27 @@ func main() {
 			// Auto-Renewal Queue & Retries
 			r.With(middleware.RequireRoles(domain.RoleManager, domain.RoleAccountant)).Post("/auto-renewals/process", billingHandler.ProcessAutoRenewals)
 			r.With(middleware.RequireRoles(domain.RoleManager, domain.RoleAccountant)).Get("/auto-renewals", billingHandler.ListAutoRenewals)
+		})
+
+		// Personal Training (PT) Routes (Protected)
+		r.Route("/pt", func(r chi.Router) {
+			r.Use(authMiddleware.Authenticate)
+
+			r.Post("/packages", ptHandler.PurchasePackage)
+			r.Get("/packages", ptHandler.ListPackages)
+			r.Post("/appointments", ptHandler.BookAppointment)
+			r.Get("/appointments", ptHandler.ListAppointments)
+			r.Post("/appointments/{id}/cancel", ptHandler.CancelAppointment)
+			r.With(middleware.RequireRoles(domain.RoleTrainer, domain.RoleManager)).Post("/appointments/{id}/complete", ptHandler.CompleteAppointment)
+		})
+
+		// Reports & Analytics Routes (Protected)
+		r.Route("/reports", func(r chi.Router) {
+			r.Use(authMiddleware.Authenticate)
+
+			r.With(middleware.RequireRoles(domain.RoleManager, domain.RoleAccountant)).Get("/revenue", reportHandler.RevenueReport)
+			r.With(middleware.RequireRoles(domain.RoleManager, domain.RoleReception)).Get("/occupancy", reportHandler.OccupancyReport)
+			r.With(middleware.RequireRoles(domain.RoleManager)).Get("/trainers", reportHandler.TrainerReport)
 		})
 
 		// Protected RBAC Verification Routes

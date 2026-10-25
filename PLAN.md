@@ -1,4 +1,4 @@
-﻿# FitGiriş — Kapsamlı Uygulama Planı (Implementation Plan)
+# FitGiriş — Kapsamlı Uygulama Planı (Implementation Plan)
 
 ## 1. Proje Özeti ve Hedefler
 **FitGiriş**, çok şubeli (5 şube) bir spor salonu zincirinin üyelik paketleri, tahsilat ve otomatik yenileme, turnike geçiş kontrolü ve grup dersi rezervasyonlarını yöneten, yüksek eşzamanlılık (concurrency) ve düşük gecikme (latency) gereksinimlerine sahip kurumsal bir sistemdir.
@@ -112,10 +112,22 @@ Bu plan; projenin `proje.md` şartnamesine ve `.agents/skills/fitgiris-rules/SKI
 | **Faz 3** | **Görev 1 (T-1) & F-1: Üyelik & Paketler** | Date clamping, FSM durum makinesi, dondurma, devir, orantılı yükseltme, paket satışı | ✅ Tamamlandı |
 | **Faz 4** | **Görev 2 (T-2) & F-4: Grup Dersi & Eşzamanlılık** | Ders programı, `FOR UPDATE` kontenjan kilidi, 2 saat iptal kuralı, `SKIP LOCKED` waitlist | ✅ Tamamlandı |
 | **Faz 5** | **Görev 3 & 4 (T-3, T-4): Turnike Kararı, Anti-Passback, Boşluksuz Fatura & Tahsilat** | In-memory gate cache (p95 < 50ms), 2h anti-passback, offline sync, FOR UPDATE fatura sayacı, 3 retry & askıya alma, idempotent ödeme | ✅ Tamamlandı |
-| **Faz 6** | **F-5 & F-6: PT Randevuları & Raporlama** | PT paket ve randevuları, ciro raporu, saatlik doluluk yoğunluk grafiği, eğitmen raporu | ⏳ Onay Bekliyor |
-| **Faz 7** | **Go Veri Simülatörü & Seed Motoru** | Seed (42 tohumu, 5 şube, 20.000 üye, 5 demo hesabı), canlı turnike/rezervasyon/hata simülasyonu | ⏸️ Beklemede |
-| **Faz 8** | **React + TypeScript + Vite Frontend** | 5 rol portalı (Üye QR/bakiye, Resepsiyon turnike, Eğitmen yoklama/PT, Müdür, Muhasebe) | ⏸️ Beklemede |
-| **Faz 9** | **Testler, k6, make verify & Dokümantasyon** | 25+ test, k6 yük testi, make verify, make reset-demo, OpenAPI, DECISIONS.md, TESTING.md, README | ⏸️ Beklemede |
+| **Faz 6** | **Simülatör, Otomasyon & Doğrulama (F-5, F-6, Seed, Verifier)** | PT paket & randevuları, Ciro/Doluluk/Eğitmen raporları, Go Simülatörü, Seed=42 (20.000 üye), `make verify`, `make reset-demo`, `TESTING.md`, k6 yük testi | ✅ Tamamlandı |
+| **Faz 7** | **React + TypeScript + Vite Frontend Portalları** | 5 rol portalı (Üye QR/bakiye, Resepsiyon turnike, Eğitmen yoklama/PT, Müdür, Muhasebe) | ⏳ Sırada |
+| **Faz 8** | **Son Teslim Hijyeni, OpenAPI, DECISIONS.md & README Soruları** | OpenAPI (Swagger), DECISIONS.md (3 ADR), README doğrulama soruları, GitHub teslim hazırlığı | ⏸️ Beklemede |
+
+---
+
+## 5. Tamamlanan Faz 6 Detayları (Simülatör, Otomasyon, PT, Raporlar ve Doğrulama)
+1. Kişisel Antrenman (PT) modülü (F-5) tamamlandı: PT paket alımı, randevu takvimi çakışma kontrolü (`HasTrainerConflictTx`) ve iptalde seans iadesi.
+2. Finansal Ciro Raporu, 24 saatlik Doluluk Yoğunluk Grafiği ve Eğitmen Performans Raporu (F-6) tamamlandı.
+3. Deterministik Tohumlayıcı (Seed=42): 5 şube, 5 demo hesabı, standart paketler, turnikeler ve `pgx.CopyFrom` ile ~1.5 saniyede veritabanına yazılan 20.000 üye geliştirildi.
+4. Go Simülatör servisi (`simulator/cmd/simulator`): Docker compose servisi olarak turnike geçişleri, ders rezervasyon hücumları ve otomatik yenileme sağlayıcı hata denemelerini periyodik olarak canlı simüle ediyor.
+5. Tek komutla uçtan uca doğrulama paketi (`make verify` / `cmd/verify`): 13 doğrulama kimliğini (`HEALTH`, `AUTH`, `RBAC`, `F-1`..`F-6`, `T-1`..`T-4`) çalıştırıp ASCII PASS/FAIL tablosu basıyor ve 0/1 çıkış kodu üretiyor.
+6. `make reset-demo`: Tek komutla veritabanını sıfırlayıp ilk deterministik seed haline döndürüyor.
+7. `make load` ve `scripts/turnstile_load_test.js`: Turnike karar hızını 1.000 eşzamanlı istekle test ederek p95 < 5ms (< 50ms) kanıtlıyor.
+8. `TESTING.md` ve `requests.http`: Demo hesapları, manuel arayüz senaryoları ve tam API koleksiyonu hazırlandı.
+9. `docs/phase-6-summary.md` dokümante edildi.
 
 ---
 
