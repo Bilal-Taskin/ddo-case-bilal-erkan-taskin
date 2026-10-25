@@ -21,7 +21,7 @@ func TestEmbeddedMigrations(t *testing.T) {
 		}
 	}
 
-	expectedCount := 6
+	expectedCount := 7
 	if len(sqlFiles) != expectedCount {
 		t.Errorf("Beklenen sql dosya sayisi %d, bulunan %d", expectedCount, len(sqlFiles))
 	}

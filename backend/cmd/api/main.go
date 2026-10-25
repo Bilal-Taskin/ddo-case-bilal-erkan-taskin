@@ -12,12 +12,18 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	"fitgiris/internal/domain"
 	"fitgiris/internal/handler"
+	"fitgiris/internal/middleware"
 	"fitgiris/internal/platform/config"
 	"fitgiris/internal/platform/database"
+	"fitgiris/internal/platform/response"
+	"fitgiris/internal/platform/security"
+	"fitgiris/internal/repository"
+	"fitgiris/internal/service"
 	"fitgiris/migrations"
 )
 
@@ -51,15 +57,34 @@ func main() {
 	}
 	slog.Info("Veritabani migrasyonlari kontrol edildi ve guncellendi")
 
+	// Platform Services & Security
+	jwtManager := security.NewJWTManager(cfg.JWTSecret)
+
+	// Repositories
+	userRepo := repository.NewPostgresUserRepository(pool)
+	auditRepo := repository.NewPostgresAuditRepository(pool)
+	idempotencyRepo := repository.NewPostgresIdempotencyRepository(pool)
+
+	// Services
+	authService := service.NewAuthService(userRepo, auditRepo, jwtManager)
+
+	// Middlewares
+	authMiddleware := middleware.NewAuthMiddleware(jwtManager)
+	idempotencyMiddleware := middleware.NewIdempotencyMiddleware(idempotencyRepo)
+
+	// Handlers
+	healthHandler := handler.NewHealthHandler(pool)
+	authHandler := handler.NewAuthHandler(authService)
+
 	// Router setup
 	r := chi.NewRouter()
 
-	// Middlewares
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-	r.Use(middleware.Timeout(60 * time.Second))
+	// Base Middlewares
+	r.Use(chiMiddleware.RequestID)
+	r.Use(chiMiddleware.RealIP)
+	r.Use(chiMiddleware.Logger)
+	r.Use(chiMiddleware.Recoverer)
+	r.Use(chiMiddleware.Timeout(60 * time.Second))
 
 	// CORS policy
 	r.Use(cors.Handler(cors.Options{
@@ -71,16 +96,59 @@ func main() {
 		MaxAge:           300,
 	}))
 
+	// Idempotency Middleware for mutating requests
+	r.Use(idempotencyMiddleware.Handle)
+
 	// Health Handler
-	healthHandler := handler.NewHealthHandler(pool)
 	r.Get("/health", healthHandler.HealthCheck)
 
-	// API v1 placeholder
+	// API v1 Routes
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"message":"FitGiris API v1 calisiyor"}`))
+			response.JSON(w, http.StatusOK, map[string]string{"message": "FitGiris API v1 calisiyor"})
+		})
+
+		// Public Auth Routes
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/register", authHandler.Register)
+			r.Post("/login", authHandler.Login)
+			r.Post("/refresh", authHandler.Refresh)
+
+			// Protected Current User Route
+			r.Group(func(r chi.Router) {
+				r.Use(authMiddleware.Authenticate)
+				r.Get("/me", authHandler.Me)
+			})
+		})
+
+		// Protected RBAC Verification Routes
+		r.Group(func(r chi.Router) {
+			r.Use(authMiddleware.Authenticate)
+
+			// Manager Only
+			r.With(middleware.RequireRoles(domain.RoleManager)).Get("/manager/dashboard", func(w http.ResponseWriter, r *http.Request) {
+				response.JSON(w, http.StatusOK, map[string]string{"access": "granted", "role": "MANAGER"})
+			})
+
+			// Trainer Only
+			r.With(middleware.RequireRoles(domain.RoleTrainer)).Get("/trainer/schedule", func(w http.ResponseWriter, r *http.Request) {
+				response.JSON(w, http.StatusOK, map[string]string{"access": "granted", "role": "TRAINER"})
+			})
+
+			// Reception & Manager
+			r.With(middleware.RequireRoles(domain.RoleReception, domain.RoleManager)).Get("/reception/overview", func(w http.ResponseWriter, r *http.Request) {
+				response.JSON(w, http.StatusOK, map[string]string{"access": "granted", "role": "RECEPTION_OR_MANAGER"})
+			})
+
+			// Accountant & Manager
+			r.With(middleware.RequireRoles(domain.RoleAccountant, domain.RoleManager)).Get("/accountant/invoices", func(w http.ResponseWriter, r *http.Request) {
+				response.JSON(w, http.StatusOK, map[string]string{"access": "granted", "role": "ACCOUNTANT_OR_MANAGER"})
+			})
+
+			// Member Only
+			r.With(middleware.RequireRoles(domain.RoleMember)).Get("/member/portal", func(w http.ResponseWriter, r *http.Request) {
+				response.JSON(w, http.StatusOK, map[string]string{"access": "granted", "role": "MEMBER"})
+			})
 		})
 	})
 

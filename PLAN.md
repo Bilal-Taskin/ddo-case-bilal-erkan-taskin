@@ -108,8 +108,8 @@ Bu plan; projenin `proje.md` şartnamesine ve `.agents/skills/fitgiris-rules/SKI
 | Faz | Başlık | Kapsam | Durum |
 | :--- | :--- | :--- | :--- |
 | **Faz 1** | **Altyapı, Konteynerler ve DB Şeması** | Go modülü, Dockerfile'lar, Compose, PostgreSQL 16 tabloları, `migrations/`, Healthcheck | ✅ Tamamlandı |
-| **Faz 2** | **Auth, RBAC & Temel Middleware** | Argon2id/Bcrypt, JWT, RBAC (5 rol), Audit Logs, Idempotency, Keyset sayfalama | ⏳ Onay Bekliyor |
-| **Faz 3** | **Görev 1 (T-1) & F-1: Üyelik & Paketler** | Date clamping, FSM durum makinesi, dondurma, devir, orantılı yükseltme, paket satışı | ⏸️ Beklemede |
+| **Faz 2** | **Auth, RBAC & Temel Middleware** | Argon2id/Bcrypt, JWT, RBAC (5 rol), Audit Logs, Idempotency, Keyset sayfalama | ✅ Tamamlandı |
+| **Faz 3** | **Görev 1 (T-1) & F-1: Üyelik & Paketler** | Date clamping, FSM durum makinesi, dondurma, devir, orantılı yükseltme, paket satışı | ⏳ Onay Bekliyor |
 | **Faz 4** | **Görev 2 (T-2) & F-4: Grup Dersi & Eşzamanlılık** | Ders programı, `FOR UPDATE` kontenjan kilidi, 2 saat iptal kuralı, `SKIP LOCKED` waitlist | ⏸️ Beklemede |
 | **Faz 5** | **Görev 3 (T-3) & F-3: Turnike Kararı & Anti-Passback** | In-memory gate cache (p95 < 50ms), 2h anti-passback, şube yetkisi, offline sync ucu | ⏸️ Beklemede |
 | **Faz 6** | **Görev 4 (T-4) & F-2: Tahsilat, Retry & Boşluksuz Fatura** | Mock ödeme, 3 deneme takvimi + 7 gün askıya alma, `FOR UPDATE` fatura sayacı | ⏸️ Beklemede |
