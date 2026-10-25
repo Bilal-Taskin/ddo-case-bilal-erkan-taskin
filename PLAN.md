@@ -1,4 +1,4 @@
-# FitGiriş — Kapsamlı Uygulama Planı (Implementation Plan)
+﻿# FitGiriş — Kapsamlı Uygulama Planı (Implementation Plan)
 
 ## 1. Proje Özeti ve Hedefler
 **FitGiriş**, çok şubeli (5 şube) bir spor salonu zincirinin üyelik paketleri, tahsilat ve otomatik yenileme, turnike geçiş kontrolü ve grup dersi rezervasyonlarını yöneten, yüksek eşzamanlılık (concurrency) ve düşük gecikme (latency) gereksinimlerine sahip kurumsal bir sistemdir.
@@ -112,19 +112,18 @@ Bu plan; projenin `proje.md` şartnamesine ve `.agents/skills/fitgiris-rules/SKI
 | **Faz 3** | **Görev 1 (T-1) & F-1: Üyelik & Paketler** | Date clamping, FSM durum makinesi, dondurma, devir, orantılı yükseltme, paket satışı | ✅ Tamamlandı |
 | **Faz 4** | **Görev 2 (T-2) & F-4: Grup Dersi & Eşzamanlılık** | Ders programı, `FOR UPDATE` kontenjan kilidi, 2 saat iptal kuralı, `SKIP LOCKED` waitlist | ✅ Tamamlandı |
 | **Faz 5** | **Görev 3 & 4 (T-3, T-4): Turnike Kararı, Anti-Passback, Boşluksuz Fatura & Tahsilat** | In-memory gate cache (p95 < 50ms), 2h anti-passback, offline sync, FOR UPDATE fatura sayacı, 3 retry & askıya alma, idempotent ödeme | ✅ Tamamlandı |
-| **Faz 6** | **Görev 4 (T-4) & F-2: Tahsilat, Retry & Boşluksuz Fatura** | Mock ödeme, 3 deneme takvimi + 7 gün askıya alma, `FOR UPDATE` fatura sayacı | ⏸️ Beklemede |
-| **Faz 7** | **F-5 & F-6: PT Randevuları & Raporlama** | PT paket ve randevuları, ciro raporu, saatlik doluluk yoğunluk grafiği, eğitmen raporu | ⏸️ Beklemede |
-| **Faz 8** | **Go Veri Simülatörü & Seed Motoru** | Seed (42 tohumu, 5 şube, 20.000 üye, 5 demo hesabı), canlı turnike/rezervasyon/hata simülasyonu | ⏸️ Beklemede |
-| **Faz 9** | **React + TypeScript + Vite Frontend** | 5 rol portalı (Üye QR/bakiye, Resepsiyon turnike, Eğitmen yoklama/PT, Müdür, Muhasebe) | ⏸️ Beklemede |
-| **Faz 10**| **Testler, k6, make verify & Dokümantasyon** | 25+ test, k6 yük testi, `make verify`, `make reset-demo`, OpenAPI, DECISIONS.md, TESTING.md, README | ⏸️ Beklemede |
+| **Faz 6** | **F-5 & F-6: PT Randevuları & Raporlama** | PT paket ve randevuları, ciro raporu, saatlik doluluk yoğunluk grafiği, eğitmen raporu | ⏳ Onay Bekliyor |
+| **Faz 7** | **Go Veri Simülatörü & Seed Motoru** | Seed (42 tohumu, 5 şube, 20.000 üye, 5 demo hesabı), canlı turnike/rezervasyon/hata simülasyonu | ⏸️ Beklemede |
+| **Faz 8** | **React + TypeScript + Vite Frontend** | 5 rol portalı (Üye QR/bakiye, Resepsiyon turnike, Eğitmen yoklama/PT, Müdür, Muhasebe) | ⏸️ Beklemede |
+| **Faz 9** | **Testler, k6, make verify & Dokümantasyon** | 25+ test, k6 yük testi, make verify, make reset-demo, OpenAPI, DECISIONS.md, TESTING.md, README | ⏸️ Beklemede |
 
 ---
 
-## 5. Faz 4 Detaylı Yapılacaklar Listesi (Grup Dersi Rezervasyonu ve Eşzamanlılık)
-1. Grup dersi ve rezervasyon domain modelleri (`internal/domain/booking.go`).
-2. Kontenjan yönetimi için `SELECT ... FOR UPDATE` pessimist satır kilidi repository katmanı (`internal/repository/booking_repo.go`).
-3. 50 kişinin eşzamanlı rezervasyon yarışını test eden ve yalnızca 1'inin kazanacağını kanıtlayan concurrency entegrasyon testi.
-4. 2 saat iptal kuralı ve bekleme listesi terfi mekanizması (`SELECT ... FOR UPDATE SKIP LOCKED`).
-5. Çakışan ders kontrolü (aynı saatte iki farklı derse rezervasyonun engellenmesi).
-6. HTTP uçları (`POST /bookings`, `POST /bookings/{id}/cancel`, `GET /schedules`).
-7. Grounding kontrolü: `go build ./...` ve `go test ./...` çalıştırma.
+## 5. Tamamlanan Faz 5 Detayları (Turnike, Anti-Passback, Boşluksuz Fatura & Tahsilat)
+1. Turnike karar motoru ve in-memory TurnstileGateCache ile p95 gecikmesi 518 mikrosaniyeye (~0.5ms) indirildi.
+2. 2 saatlik Anti-Passback kuralı kodlandı (çıkış yapılmadan 2 saat içinde mükerrer giriş engellenir).
+3. Çevrimdışı turnike loglarının senkronizasyonu (POST /turnstiles/sync-offline) ve anomali tespiti eklendi.
+4. invoice_sequences üzerinde SELECT ... FOR UPDATE ile eşzamanlı 50 istek altında dahi boşluksuz (gapless) ve mükerrersiz fatura üretimi kanıtlandı.
+5. Idempotent ödeme akışı ve Idempotency-Key desteği entegre edildi.
+6. 3 deneme takvimi (1., 3., 5. gün) ve 7. günde tahsil edilemeyen üyelikleri SUSPENDED durumuna alarak turnikeleri kilitleyen otomatik yenileme kuyruğu geliştirildi.
+7. Tüm birim, entegrasyon ve concurrency testleri başarıyla geçti (docs/phase-5-summary.md oluşturuldu).
