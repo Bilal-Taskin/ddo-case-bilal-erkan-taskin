@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS invoices (
     sequence_number BIGINT NOT NULL,
     amount_kurus BIGINT NOT NULL CHECK (amount_kurus >= 0),
     tax_kurus BIGINT NOT NULL DEFAULT 0 CHECK (tax_kurus >= 0),
-    status VARCHAR(30) NOT NULL CHECK (status IN ('PAID', 'REFUNDED', 'CANCELLED')),
+    status VARCHAR(30) NOT NULL CHECK (status IN ('PAID', 'REFUNDED', 'CANCELLED', 'PENDING')),
     payment_method VARCHAR(30) NOT NULL DEFAULT 'CREDIT_CARD',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT unique_invoice_sequence_per_branch UNIQUE (year, branch_id, sequence_number)

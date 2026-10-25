@@ -111,7 +111,7 @@ Bu plan; projenin `proje.md` şartnamesine ve `.agents/skills/fitgiris-rules/SKI
 | **Faz 2** | **Auth, RBAC & Temel Middleware** | Argon2id/Bcrypt, JWT, RBAC (5 rol), Audit Logs, Idempotency, Keyset sayfalama | ✅ Tamamlandı |
 | **Faz 3** | **Görev 1 (T-1) & F-1: Üyelik & Paketler** | Date clamping, FSM durum makinesi, dondurma, devir, orantılı yükseltme, paket satışı | ✅ Tamamlandı |
 | **Faz 4** | **Görev 2 (T-2) & F-4: Grup Dersi & Eşzamanlılık** | Ders programı, `FOR UPDATE` kontenjan kilidi, 2 saat iptal kuralı, `SKIP LOCKED` waitlist | ✅ Tamamlandı |
-| **Faz 5** | **Görev 3 (T-3) & F-3: Turnike Kararı & Anti-Passback** | In-memory gate cache (p95 < 50ms), 2h anti-passback, şube yetkisi, offline sync ucu | ⏳ Onay Bekliyor |
+| **Faz 5** | **Görev 3 & 4 (T-3, T-4): Turnike Kararı, Anti-Passback, Boşluksuz Fatura & Tahsilat** | In-memory gate cache (p95 < 50ms), 2h anti-passback, offline sync, FOR UPDATE fatura sayacı, 3 retry & askıya alma, idempotent ödeme | ✅ Tamamlandı |
 | **Faz 6** | **Görev 4 (T-4) & F-2: Tahsilat, Retry & Boşluksuz Fatura** | Mock ödeme, 3 deneme takvimi + 7 gün askıya alma, `FOR UPDATE` fatura sayacı | ⏸️ Beklemede |
 | **Faz 7** | **F-5 & F-6: PT Randevuları & Raporlama** | PT paket ve randevuları, ciro raporu, saatlik doluluk yoğunluk grafiği, eğitmen raporu | ⏸️ Beklemede |
 | **Faz 8** | **Go Veri Simülatörü & Seed Motoru** | Seed (42 tohumu, 5 şube, 20.000 üye, 5 demo hesabı), canlı turnike/rezervasyon/hata simülasyonu | ⏸️ Beklemede |

@@ -66,11 +66,18 @@ func main() {
 	idempotencyRepo := repository.NewPostgresIdempotencyRepository(pool)
 	membershipRepo := repository.NewPostgresMembershipRepository(pool)
 	bookingRepo := repository.NewPostgresBookingRepository(pool)
+	turnstileRepo := repository.NewPostgresTurnstileRepository(pool)
+	billingRepo := repository.NewPostgresBillingRepository(pool)
+
+	// Platform Services & Mock Providers
+	paymentProv := service.NewMockPaymentProvider()
 
 	// Services
 	authService := service.NewAuthService(userRepo, auditRepo, jwtManager)
 	membershipService := service.NewMembershipService(membershipRepo, userRepo, auditRepo)
 	bookingService := service.NewBookingService(bookingRepo, userRepo, auditRepo)
+	turnstileService := service.NewTurnstileService(turnstileRepo, userRepo, auditRepo)
+	billingService := service.NewBillingService(billingRepo, membershipRepo, userRepo, auditRepo, paymentProv)
 
 	// Middlewares
 	authMiddleware := middleware.NewAuthMiddleware(jwtManager)
@@ -81,6 +88,8 @@ func main() {
 	authHandler := handler.NewAuthHandler(authService)
 	membershipHandler := handler.NewMembershipHandler(membershipService)
 	bookingHandler := handler.NewBookingHandler(bookingService)
+	turnstileHandler := handler.NewTurnstileHandler(turnstileService)
+	billingHandler := handler.NewBillingHandler(billingService)
 
 	// Router setup
 	r := chi.NewRouter()
@@ -180,6 +189,40 @@ func main() {
 
 			// Attendance marking: Trainer, Reception, Manager
 			r.With(middleware.RequireRoles(domain.RoleTrainer, domain.RoleReception, domain.RoleManager)).Post("/schedules/{id}/attendance", bookingHandler.MarkAttendance)
+		})
+
+		// Turnstile Access Control & Offline Sync (Protected)
+		r.Route("/turnstiles", func(r chi.Router) {
+			r.Use(authMiddleware.Authenticate)
+
+			// Fast turnstile pass evaluation (Reception, Manager)
+			r.With(middleware.RequireRoles(domain.RoleReception, domain.RoleManager)).Post("/access", turnstileHandler.EvaluateAccess)
+
+			// Offline logs sync & anomaly check (Reception, Manager)
+			r.With(middleware.RequireRoles(domain.RoleReception, domain.RoleManager)).Post("/sync-offline", turnstileHandler.SyncOffline)
+
+			// Access log history
+			r.With(middleware.RequireRoles(domain.RoleReception, domain.RoleManager)).Get("/logs", turnstileHandler.ListAccessLogs)
+
+			// Turnstile gate definitions
+			r.With(middleware.RequireRoles(domain.RoleReception, domain.RoleManager)).Get("/", turnstileHandler.ListTurnstiles)
+			r.With(middleware.RequireRoles(domain.RoleReception, domain.RoleManager)).Get("/{id}", turnstileHandler.GetTurnstile)
+			r.With(middleware.RequireRoles(domain.RoleManager)).Post("/", turnstileHandler.CreateTurnstile)
+		})
+
+		// Billing, Gapless Invoices & Auto-Renewal Queue (Protected)
+		r.Route("/billing", func(r chi.Router) {
+			r.Use(authMiddleware.Authenticate)
+
+			// Invoices
+			r.Get("/invoices", billingHandler.ListInvoices)
+			r.Get("/invoices/{id}", billingHandler.GetInvoice)
+			r.With(middleware.RequireRoles(domain.RoleManager, domain.RoleAccountant)).Post("/invoices", billingHandler.CreateInvoice)
+			r.Post("/invoices/{id}/pay", billingHandler.PayInvoice)
+
+			// Auto-Renewal Queue & Retries
+			r.With(middleware.RequireRoles(domain.RoleManager, domain.RoleAccountant)).Post("/auto-renewals/process", billingHandler.ProcessAutoRenewals)
+			r.With(middleware.RequireRoles(domain.RoleManager, domain.RoleAccountant)).Get("/auto-renewals", billingHandler.ListAutoRenewals)
 		})
 
 		// Protected RBAC Verification Routes
