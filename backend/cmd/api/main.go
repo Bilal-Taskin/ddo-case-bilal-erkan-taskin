@@ -64,9 +64,11 @@ func main() {
 	userRepo := repository.NewPostgresUserRepository(pool)
 	auditRepo := repository.NewPostgresAuditRepository(pool)
 	idempotencyRepo := repository.NewPostgresIdempotencyRepository(pool)
+	membershipRepo := repository.NewPostgresMembershipRepository(pool)
 
 	// Services
 	authService := service.NewAuthService(userRepo, auditRepo, jwtManager)
+	membershipService := service.NewMembershipService(membershipRepo, userRepo, auditRepo)
 
 	// Middlewares
 	authMiddleware := middleware.NewAuthMiddleware(jwtManager)
@@ -75,6 +77,7 @@ func main() {
 	// Handlers
 	healthHandler := handler.NewHealthHandler(pool)
 	authHandler := handler.NewAuthHandler(authService)
+	membershipHandler := handler.NewMembershipHandler(membershipService)
 
 	// Router setup
 	r := chi.NewRouter()
@@ -119,6 +122,33 @@ func main() {
 				r.Use(authMiddleware.Authenticate)
 				r.Get("/me", authHandler.Me)
 			})
+		})
+
+		// Package Types Routes
+		r.Route("/packages", func(r chi.Router) {
+			r.Get("/", membershipHandler.ListPackageTypes)
+			r.Get("/{id}", membershipHandler.GetPackageType)
+
+			// Manager Only Package Creation
+			r.Group(func(r chi.Router) {
+				r.Use(authMiddleware.Authenticate)
+				r.With(middleware.RequireRoles(domain.RoleManager)).Post("/", membershipHandler.CreatePackageType)
+			})
+		})
+
+		// Membership Lifecycle Routes (Protected)
+		r.Route("/memberships", func(r chi.Router) {
+			r.Use(authMiddleware.Authenticate)
+
+			r.Get("/", membershipHandler.List)
+			r.Get("/{id}", membershipHandler.GetByID)
+			r.Post("/purchase", membershipHandler.Purchase)
+			r.Post("/{id}/freeze", membershipHandler.Freeze)
+			r.Post("/{id}/unfreeze", membershipHandler.Unfreeze)
+			r.Post("/{id}/transfer", membershipHandler.Transfer)
+			r.Get("/{id}/upgrade-quote", membershipHandler.UpgradeQuote)
+			r.Post("/{id}/upgrade", membershipHandler.Upgrade)
+			r.Post("/{id}/cancel", membershipHandler.Cancel)
 		})
 
 		// Protected RBAC Verification Routes

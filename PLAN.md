@@ -109,8 +109,8 @@ Bu plan; projenin `proje.md` şartnamesine ve `.agents/skills/fitgiris-rules/SKI
 | :--- | :--- | :--- | :--- |
 | **Faz 1** | **Altyapı, Konteynerler ve DB Şeması** | Go modülü, Dockerfile'lar, Compose, PostgreSQL 16 tabloları, `migrations/`, Healthcheck | ✅ Tamamlandı |
 | **Faz 2** | **Auth, RBAC & Temel Middleware** | Argon2id/Bcrypt, JWT, RBAC (5 rol), Audit Logs, Idempotency, Keyset sayfalama | ✅ Tamamlandı |
-| **Faz 3** | **Görev 1 (T-1) & F-1: Üyelik & Paketler** | Date clamping, FSM durum makinesi, dondurma, devir, orantılı yükseltme, paket satışı | ⏳ Onay Bekliyor |
-| **Faz 4** | **Görev 2 (T-2) & F-4: Grup Dersi & Eşzamanlılık** | Ders programı, `FOR UPDATE` kontenjan kilidi, 2 saat iptal kuralı, `SKIP LOCKED` waitlist | ⏸️ Beklemede |
+| **Faz 3** | **Görev 1 (T-1) & F-1: Üyelik & Paketler** | Date clamping, FSM durum makinesi, dondurma, devir, orantılı yükseltme, paket satışı | ✅ Tamamlandı |
+| **Faz 4** | **Görev 2 (T-2) & F-4: Grup Dersi & Eşzamanlılık** | Ders programı, `FOR UPDATE` kontenjan kilidi, 2 saat iptal kuralı, `SKIP LOCKED` waitlist | ⏳ Onay Bekliyor |
 | **Faz 5** | **Görev 3 (T-3) & F-3: Turnike Kararı & Anti-Passback** | In-memory gate cache (p95 < 50ms), 2h anti-passback, şube yetkisi, offline sync ucu | ⏸️ Beklemede |
 | **Faz 6** | **Görev 4 (T-4) & F-2: Tahsilat, Retry & Boşluksuz Fatura** | Mock ödeme, 3 deneme takvimi + 7 gün askıya alma, `FOR UPDATE` fatura sayacı | ⏸️ Beklemede |
 | **Faz 7** | **F-5 & F-6: PT Randevuları & Raporlama** | PT paket ve randevuları, ciro raporu, saatlik doluluk yoğunluk grafiği, eğitmen raporu | ⏸️ Beklemede |
@@ -120,11 +120,11 @@ Bu plan; projenin `proje.md` şartnamesine ve `.agents/skills/fitgiris-rules/SKI
 
 ---
 
-## 5. Faz 1 Detaylı Yapılacaklar Listesi (Bir Sonraki Adım)
-1. Backend dizin hiyerarşisinin kurulması (`cmd/api`, `internal/domain`, `internal/repository`, `internal/service`, `internal/handler`, `migrations`).
-2. `go.mod` dosyasının oluşturulması ve bağımlılıkların (`chi`, `pgx/v5`, `slog`) eklenmesi.
-3. PostgreSQL 16 DDL migrasyonlarının `migrations/` klasörüne yazılması (`001_branches_and_users.sql` ... `006_pt_and_audits.sql`).
-4. `jackc/pgx/v5` havuz konfigürasyonu (`pgxpool.Pool`) ve `GET /health` kontrol ucu.
-5. Multi-stage ve `USER nonroot` tabanlı `Dockerfile` ve `docker-compose.yml` (PostgreSQL 16, Backend, Frontend, Simulator).
-6. Grounding kontrolü: Terminalde `go build ./...` ve `go test ./...` çalıştırılması.
-7. Faz 1 Git commit'i, `PLAN.md` durum güncellemesi ve Faz 2 için onay talebi.
+## 5. Faz 4 Detaylı Yapılacaklar Listesi (Grup Dersi Rezervasyonu ve Eşzamanlılık)
+1. Grup dersi ve rezervasyon domain modelleri (`internal/domain/booking.go`).
+2. Kontenjan yönetimi için `SELECT ... FOR UPDATE` pessimist satır kilidi repository katmanı (`internal/repository/booking_repo.go`).
+3. 50 kişinin eşzamanlı rezervasyon yarışını test eden ve yalnızca 1'inin kazanacağını kanıtlayan concurrency entegrasyon testi.
+4. 2 saat iptal kuralı ve bekleme listesi terfi mekanizması (`SELECT ... FOR UPDATE SKIP LOCKED`).
+5. Çakışan ders kontrolü (aynı saatte iki farklı derse rezervasyonun engellenmesi).
+6. HTTP uçları (`POST /bookings`, `POST /bookings/{id}/cancel`, `GET /schedules`).
+7. Grounding kontrolü: `go build ./...` ve `go test ./...` çalıştırma.
