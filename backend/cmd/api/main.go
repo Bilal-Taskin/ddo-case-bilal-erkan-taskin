@@ -112,6 +112,7 @@ func main() {
 	billingHandler := handler.NewBillingHandler(billingService)
 	ptHandler := handler.NewPTHandler(ptService)
 	reportHandler := handler.NewReportHandler(reportService)
+	swaggerHandler := handler.NewSwaggerHandler()
 
 	// Router setup
 	r := chi.NewRouter()
@@ -136,11 +137,17 @@ func main() {
 	// Idempotency Middleware for mutating requests
 	r.Use(idempotencyMiddleware.Handle)
 
-	// Health Handler
+	// Health & OpenAPI / Swagger Handlers
 	r.Get("/health", healthHandler.HealthCheck)
+	r.Get("/openapi.yaml", swaggerHandler.ServeOpenAPI)
+	r.Get("/swagger", swaggerHandler.ServeSwaggerUI)
+	r.Get("/docs", swaggerHandler.ServeSwaggerUI)
 
 	// API v1 Routes
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Get("/openapi.yaml", swaggerHandler.ServeOpenAPI)
+		r.Get("/swagger", swaggerHandler.ServeSwaggerUI)
+		r.Get("/docs", swaggerHandler.ServeSwaggerUI)
 		r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 			response.JSON(w, http.StatusOK, map[string]string{"message": "FitGiris API v1 calisiyor"})
 		})

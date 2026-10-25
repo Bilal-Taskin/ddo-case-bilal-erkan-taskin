@@ -1,0 +1,566 @@
+openapi: 3.0.3
+info:
+  title: FitGiriş API Dokümantasyonu
+  description: >
+    FitGiriş spor salonu zinciri (5 şube, 20.000 üye) için üyelik yaşam döngüsü,
+    p95 < 50ms turnike erişim kontrolü, eşzamanlı grup dersi rezervasyonu (FOR UPDATE / SKIP LOCKED),
+    boşluksuz fatura ve otomatik yenileme provizyon motorunu sunan yüksek performanslı REST API.
+  version: 1.0.0
+  contact:
+    name: Bilal Erkan Taşkın
+    email: candidate@fitgiris.com
+
+servers:
+  - url: http://localhost:8080
+    description: Yerel Geliştirme / Docker Compose Sunucusu
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "JWT access token. Format: `Bearer <token>`"
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+        error:
+          $ref: '#/components/schemas/ApiError'
+
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+          example: "ERR_INVALID_CREDENTIALS"
+        message:
+          type: string
+          example: "E-posta veya parola hatalı"
+        details:
+          type: object
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        first_name:
+          type: string
+        last_name:
+          type: string
+        role:
+          type: string
+          enum: [MEMBER, RECEPTION, TRAINER, MANAGER, ACCOUNTANT]
+        branch_id:
+          type: string
+          format: uuid
+
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+        database:
+          type: string
+          example: "connected"
+        timestamp:
+          type: string
+          format: date-time
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          example: "manager@fitgiris.com"
+        password:
+          type: string
+          example: "Password123!"
+
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        tokens:
+          type: object
+          properties:
+            access_token:
+              type: string
+            refresh_token:
+              type: string
+            expires_in:
+              type: integer
+              example: 900
+
+    PackageType:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Gold Yıllık Paket"
+        type:
+          type: string
+          enum: [MONTHLY, ENTRY_COUNT, ANNUAL]
+        price_kurus:
+          type: integer
+          description: "Kuruş cinsinden tutar (BIGINT). Örn: 150000 = 1.500,00 TL"
+          example: 150000
+        duration_days:
+          type: integer
+          example: 365
+        entry_limit:
+          type: integer
+          nullable: true
+        freeze_days_limit:
+          type: integer
+          example: 30
+        all_branches:
+          type: boolean
+          example: true
+
+    PurchaseMembershipRequest:
+      type: object
+      required: [package_type_id, card_token]
+      properties:
+        package_type_id:
+          type: string
+          format: uuid
+        card_token:
+          type: string
+          example: "CARD-DEMO-001"
+
+    TurnstileAccessRequest:
+      type: object
+      required: [turnstile_id, card_token, direction]
+      properties:
+        turnstile_id:
+          type: string
+          format: uuid
+        card_token:
+          type: string
+          example: "CARD-DEMO-001"
+        direction:
+          type: string
+          enum: [IN, OUT]
+
+    TurnstileAccessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [GRANTED, DENIED]
+        reason:
+          type: string
+          example: "SUCCESS"
+        remaining_entries:
+          type: integer
+        anti_passback_status:
+          type: string
+          example: "OK"
+
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        invoice_number:
+          type: string
+          description: "Boşluksuz sıralı numara (FIT-YYYY-SUBE-000001)"
+          example: "FIT-2026-IST01-000001"
+        member_id:
+          type: string
+          format: uuid
+        branch_id:
+          type: string
+          format: uuid
+        sequence_number:
+          type: integer
+          example: 1
+        amount_kurus:
+          type: integer
+          example: 150000
+        tax_kurus:
+          type: integer
+          example: 30000
+        status:
+          type: string
+          enum: [PAID, REFUNDED, CANCELLED, PENDING]
+        payment_method:
+          type: string
+          example: "CREDIT_CARD"
+        created_at:
+          type: string
+          format: date-time
+
+paths:
+  /health:
+    get:
+      summary: Sistem ve Veritabanı Sağlık Kontrolü
+      description: Backend API ve PostgreSQL veritabanı bağlantı havuzunun durumunu döner.
+      responses:
+        '200':
+          description: Sistem sağlıklı
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /api/v1/ping:
+    get:
+      summary: Servis Canlılık Kontrolü
+      responses:
+        '200':
+          description: Pong yanıtı
+
+  /api/v1/auth/register:
+    post:
+      summary: Yeni Üye Kaydı
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, first_name, last_name, branch_id]
+              properties:
+                email: { type: string }
+                password: { type: string }
+                first_name: { type: string }
+                last_name: { type: string }
+                branch_id: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Üye oluşturuldu
+
+  /api/v1/auth/login:
+    post:
+      summary: Kullanıcı Girişi (JWT Token Alma)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Başarılı giriş
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Hatalı e-posta veya parola
+
+  /api/v1/auth/refresh:
+    post:
+      summary: Access Token Yenileme
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200':
+          description: Yeni token çifti üretildi
+
+  /api/v1/auth/me:
+    get:
+      summary: Mevcut Oturum Bilgisi
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Giriş yapan kullanıcının profili
+
+  /api/v1/packages:
+    get:
+      summary: Satışa Açık Üyelik Paketlerini Listele
+      responses:
+        '200':
+          description: Paket listesi
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PackageType'
+    post:
+      summary: Yeni Paket Tipi Tanımla (Yalnızca MANAGER)
+      security:
+        - BearerAuth: []
+      responses:
+        '201':
+          description: Paket tipi oluşturuldu
+
+  /api/v1/packages/{id}:
+    get:
+      summary: Paket Tipi Detayı
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Paket detayı
+
+  /api/v1/memberships/purchase:
+    post:
+      summary: Üyelik Paketi Satın Alma (T-1 Clamped Date Hesabı)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseMembershipRequest'
+      responses:
+        '201':
+          description: Üyelik başlatıldı
+
+  /api/v1/memberships/{id}/freeze:
+    post:
+      summary: Üyelik Dondurma (Yıllık Maks 30 Gün)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Üyelik donduruldu
+
+  /api/v1/memberships/{id}/unfreeze:
+    post:
+      summary: Dondurulan Üyeliği Erken Çözme (Günleri İade Eder)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Üyelik yeniden aktif
+
+  /api/v1/memberships/{id}/transfer:
+    post:
+      summary: Üyelik Devri (Hedef Üyeye Kalan Gün Kadar Yeni Paket)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_member_id]
+              properties:
+                target_member_id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Üyelik devredildi
+
+  /api/v1/memberships/{id}/upgrade-quote:
+    get:
+      summary: Paket Yükseltme Orantılı Fark Teklifi (Prorated Quote)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: new_package_type_id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Kalan gün değeri ve ödenecek fark tutarı
+
+  /api/v1/memberships/{id}/upgrade:
+    post:
+      summary: Paketi Yükselt (Prorated Upgrade)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Paket yükseltildi
+
+  /api/v1/classes/schedules:
+    get:
+      summary: Şube Bazlı Grup Dersi Programını Listele
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: branch_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Ders takvimi ve anlık kontenjanlar
+
+  /api/v1/classes/schedules/{id}/book:
+    post:
+      summary: Derse Rezervasyon Yap (Görev 2 - FOR UPDATE Kontenjan Kilidi)
+      description: >
+        50 üyenin son 1 koltuğa hücum ettiği durumlarda pessismistic row lock ile
+        yalnızca 1 üye CONFIRMED yapılır, diğerleri FIFO sırasıyla WAITING listesine eklenir.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Rezervasyon onaylandı veya bekleme listesine alındı
+
+  /api/v1/classes/bookings/{id}/cancel:
+    post:
+      summary: Rezervasyon İptali (2 Saat Kuralı & Bekleme Listesi FIFO Terfisi)
+      description: >
+        Derse 2 saat kala yapılan iptallerde hak iadesi yapılır ve bekleme listesindeki
+        ilk üye `FOR UPDATE SKIP LOCKED` ile asil kontenjana terfi ettirilir.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: İptal edildi ve sıradaki terfi ettirildi
+
+  /api/v1/turnstiles/access:
+    post:
+      summary: Turnike Geçiş İzni Kararı (Görev 3 - p95 < 50ms & Anti-Passback)
+      description: >
+        Bellek içi TurnstileGateCache ve bileşik B-Tree indeksi ile ortalama ~4ms gecikmeyle
+        aktif üyelik, seans bakiyesi, şube yetkisi ve 2 saatlik mükerrer giriş (anti-passback) kontrolü yapar.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TurnstileAccessRequest'
+      responses:
+        '200':
+          description: Karar sonucu (GRANTED / DENIED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TurnstileAccessResponse'
+
+  /api/v1/turnstiles/sync-offline:
+    post:
+      summary: Çevrimdışı Turnike Loglarını Senkronize Et
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Senkronizasyon tamamlandı ve anomaliler audit tablosuna kaydedildi
+
+  /api/v1/billing/invoices:
+    get:
+      summary: Sıralı Boşluksuz Faturaları Listele
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Fatura listesi
+
+  /api/v1/billing/invoices/{id}/pay:
+    post:
+      summary: Fatura Tahsilatı (Idempotency-Key Destekli)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: Idempotency-Key
+          in: header
+          schema: { type: string }
+      responses:
+        '200':
+          description: Fatura tahsil edildi
+
+  /api/v1/billing/auto-renewals/process:
+    post:
+      summary: Otomatik Yenileme Kuyruğunu İşlet (Görev 4 - 3 Deneme Takvimi & Askıya Alma)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Kuyruk işlendi (Hata durumunda 48 saat sonraya randevu; 7. günde SUSPENDED)
+
+  /api/v1/reports/revenue:
+    get:
+      summary: Şube Bazlı Finansal Ciro Raporu (F-6)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Şubelere göre toplam kuruş ciro dağılımı
+
+  /api/v1/reports/occupancy:
+    get:
+      summary: 24 Saatlik Saat Bazlı Doluluk ve Yoğunluk Analizi (F-6)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Giriş/Çıkış saatlik farkından pik saat analizi
+
+  /api/v1/reports/trainers:
+    get:
+      summary: Eğitmen Performans ve Doluluk Raporu (F-6)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Tamamlanan ders, seans ve ortalama doluluk oranları

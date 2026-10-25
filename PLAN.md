@@ -113,8 +113,17 @@ Bu plan; projenin `proje.md` şartnamesine ve `.agents/skills/fitgiris-rules/SKI
 | **Faz 4** | **Görev 2 (T-2) & F-4: Grup Dersi & Eşzamanlılık** | Ders programı, `FOR UPDATE` kontenjan kilidi, 2 saat iptal kuralı, `SKIP LOCKED` waitlist | ✅ Tamamlandı |
 | **Faz 5** | **Görev 3 & 4 (T-3, T-4): Turnike Kararı, Anti-Passback, Boşluksuz Fatura & Tahsilat** | In-memory gate cache (p95 < 50ms), 2h anti-passback, offline sync, FOR UPDATE fatura sayacı, 3 retry & askıya alma, idempotent ödeme | ✅ Tamamlandı |
 | **Faz 6** | **Simülatör, Otomasyon & Doğrulama (F-5, F-6, Seed, Verifier)** | PT paket & randevuları, Ciro/Doluluk/Eğitmen raporları, Go Simülatörü, Seed=42 (20.000 üye), `make verify`, `make reset-demo`, `TESTING.md`, k6 yük testi | ✅ Tamamlandı |
-| **Faz 7** | **React + TypeScript + Vite Frontend Portalları** | 5 rol portalı (Üye QR/bakiye, Resepsiyon turnike, Eğitmen yoklama/PT, Müdür, Muhasebe) | ⏳ Sırada |
-| **Faz 8** | **Son Teslim Hijyeni, OpenAPI, DECISIONS.md & README Soruları** | OpenAPI (Swagger), DECISIONS.md (3 ADR), README doğrulama soruları, GitHub teslim hazırlığı | ⏸️ Beklemede |
+| **Faz 7** | **Final Aşama: DECISIONS.md, README Doğrulama Soruları, OpenAPI/Swagger, Frontend & CI** | DECISIONS.md (5 ADR), README doğrulama soruları, OpenAPI/Swagger UI, 5-rol React arayüzü, CI pipeline ve nihai doğrulama | ✅ Tamamlandı |
+
+---
+
+## 5. Tamamlanan Faz 7 Detayları (Final Aşama: Mimari Karar Kayıtları, README ve Nihai Kontroller)
+1. `DECISIONS.md`: ORM yerine pgx/v5, Clamped Date & FSM, Pessimistic Lock & Waitlist FIFO, Boşluksuz (Gapless) Fatura ve Turnike Gate Cache mimarilerini kapsayan 5 kapsamlı ADR yazıldı.
+2. `README.md`: DDO proje şartnamesinin Bölüm 12'sindeki 5 zorunlu doğrulama sorusu projeye özgü teknik derinlikle cevaplandı; 2 kritik B-Tree indeksi için `EXPLAIN (ANALYZE)` ölçümleri ve mimari özet eklendi.
+3. OpenAPI & Swagger UI: `docs/openapi.yaml` spesifikasyonu hazırlandı ve backend içerisine gömülerek `/swagger`, `/docs`, `/openapi.yaml` uç noktalarıyla tarayıcıdan interaktif erişime açıldı (`swagger_handler_test.go` ile test edildi).
+4. React Frontend Portalı (`frontend/src/App.tsx`): 5 rol için dinamik QR kod, anti-passback turnike geçiş simülatörü, grup dersi rezervasyonu ve boşluksuz fatura panelleri kodlandı (`npm run build` ile 2.5s'de derlendi).
+5. GitHub Actions: `.github/workflows/ci.yml` oluşturularak Go derleme, test ve lint otomasyonu tamamlandı.
+6. `docs/phase-7-summary.md` dokümante edildi.
 
 ---
 
