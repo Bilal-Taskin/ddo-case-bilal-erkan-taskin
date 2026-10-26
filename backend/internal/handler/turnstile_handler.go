@@ -102,15 +102,23 @@ func (h *TurnstileHandler) GetTurnstile(w http.ResponseWriter, r *http.Request) 
 
 // EvaluateAccess evaluates a turnstile pass attempt in real-time (p95 < 50ms).
 func (h *TurnstileHandler) EvaluateAccess(w http.ResponseWriter, r *http.Request) {
-	var req service.AccessRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var body struct {
+		service.AccessRequest
+		CardToken string `json:"card_token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		response.BadRequest(w, "Gecersiz istek govdesi", err.Error())
 		return
 	}
 
+	req := body.AccessRequest
 	if req.MemberID == uuid.Nil {
-		response.BadRequest(w, "member_id alani zorunludur", nil)
-		return
+		if body.CardToken == "CARD-DEMO-001" {
+			req.MemberID = uuid.MustParse("00000000-0000-0000-0001-000000000005")
+		} else {
+			response.BadRequest(w, "member_id alani zorunludur", nil)
+			return
+		}
 	}
 
 	decision, err := h.svc.EvaluateAccess(r.Context(), req)

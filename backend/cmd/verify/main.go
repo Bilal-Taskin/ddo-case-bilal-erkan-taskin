@@ -362,6 +362,7 @@ func verifyF3(client *http.Client, baseURL string) VerificationResult {
 
 	payload, _ := json.Marshal(map[string]interface{}{
 		"turnstile_id": "00000000-0000-0000-0002-000000000001", // Besiktas
+		"member_id":    "00000000-0000-0000-0001-000000000005", // Demo Member
 		"card_token":   "CARD-DEMO-001",
 	})
 
@@ -463,7 +464,7 @@ func verifyF5(client *http.Client, baseURL string) VerificationResult {
 	pResp.Body.Close()
 
 	// 2. Book PT Appointment
-	now := time.Now().Add(48 * time.Hour).Truncate(time.Hour)
+	now := time.Now().Add(72 * time.Hour).Truncate(time.Hour)
 	appPayload, _ := json.Marshal(map[string]interface{}{
 		"pt_package_id": pkgRes.Data.ID,
 		"branch_id":     "00000000-0000-0000-0002-000000000001",

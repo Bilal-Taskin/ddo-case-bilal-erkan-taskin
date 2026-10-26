@@ -48,4 +48,5 @@ func main() {
 	}
 
 	slog.Info("Seed islemi basariyla tamamlandi!")
+	os.Exit(0)
 }

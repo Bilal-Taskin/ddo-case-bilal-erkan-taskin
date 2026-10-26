@@ -332,10 +332,10 @@ func seedClassesAndSchedules(ctx context.Context, pool *pgxpool.Pool) error {
 	for _, c := range classes {
 		query := `
 			INSERT INTO classes (id, name, description, duration_minutes, default_capacity, is_active, created_at)
-			VALUES ($1, $2, $2, $3, $4, true, NOW())
+			VALUES ($1, $2, $3, $4, $5, true, NOW())
 			ON CONFLICT (id) DO NOTHING
 		`
-		if _, err := pool.Exec(ctx, query, c.ID, c.Name, c.Duration, c.Capacity); err != nil {
+		if _, err := pool.Exec(ctx, query, c.ID, c.Name, c.Name, c.Duration, c.Capacity); err != nil {
 			return err
 		}
 	}

@@ -56,11 +56,22 @@ docker compose up --build
 
 ### Servis Erişim Bilgileri
 
-- **Frontend Portalı:** [`http://localhost:3000`](http://localhost:3000)
-- **Backend API:** [`http://localhost:8080`](http://localhost:8080)
-- **Swagger UI (Canlı API Dokümantasyonu):** [`http://localhost:8080/swagger`](http://localhost:8080/swagger) veya [`http://localhost:8080/docs`](http://localhost:8080/docs)
-- **OpenAPI 3.0 Spesifikasyonu:** [`http://localhost:8080/openapi.yaml`](http://localhost:8080/openapi.yaml)
-- **Sistem Sağlık Kontrolü:** [`http://localhost:8080/health`](http://localhost:8080/health)
+| Servis / Arayüz | Adres / Port | Açıklama / Giriş Bilgileri |
+| :--- | :--- | :--- |
+| **Frontend Portalı** | [`http://localhost:3000`](http://localhost:3000) | 5 rol için özelleştirilmiş React yönetim paneli |
+| **Veritabanı Web Arayüzü (Adminer)** | [`http://localhost:8085`](http://localhost:8085) | **Sistem:** PostgreSQL · **Sunucu:** `postgres` · **Kullanıcı:** `postgres` · **Şifre:** `postgres` · **Veritabanı:** `fitgiris` |
+| **Backend REST API** | [`http://localhost:8080`](http://localhost:8080) | Go Chi REST API çekirdeği |
+| **Swagger UI (Canlı API)** | [`http://localhost:8080/swagger`](http://localhost:8080/swagger) | İnteraktif canlı API dokümantasyonu |
+| **OpenAPI 3.0 Şeması** | [`http://localhost:8080/openapi.yaml`](http://localhost:8080/openapi.yaml) | Ham OpenAPI tanımlayıcısı |
+| **PostgreSQL Veritabanı** | Yalnızca Compose Ağı (`fitgiris-net`) | Şartname Bölüm 3 gereği host'a açılmaz; web arayüzü için Adminer kullanılır |
+| **Sistem Sağlık Kontrolü** | [`http://localhost:8080/health`](http://localhost:8080/health) | API ve PostgreSQL canlılık (liveness/readiness) kontrolü |
+
+> [!TIP]
+> **Veritabanına Web Arayüzünden (Adminer) Tek Tıkla Erişim:**  
+> Doğrudan tüm alanları hazır doldurulmuş olan bağlantıyı açabilirsiniz:  
+> 🔗 **[`http://localhost:8085/?pgsql=postgres&username=postgres&db=fitgiris`](http://localhost:8085/?pgsql=postgres&username=postgres&db=fitgiris)**  
+> Açılan ekranda yalnızca Parola (Password) kısmına **`postgres`** yazıp **Login** butonuna basmanız yeterlidir.  
+> *(Kopyala-yapıştır yaparken kullanıcı adı veya şifrenin sonuna fazladan boşluk (` `) eklenmediğinden emin olun).*
 
 ---
 
@@ -197,16 +208,18 @@ Execution Time: 0.118 ms
 
 ### 1. En zorlandığın görev hangisiydi? Hangi alternatif çözümleri düşündün ve neden eledin?
 
-**En çok zorlandığım görev:**  
-**Görev 4 (`T-4`): Eşzamanlı istekler altında Boşluksuz (Gapless) ve Mükerrersiz Fatura Numarası Üretimi.**
+**En çok zorlandığım görev ve süreç:**  
+Bu projede kod yazımı, mimari iskeletin kurulması ve algoritmik kurguların tamamı yapay zekâ (LLM) araçları orkestre edilerek gerçekleştirilmiştir. Bu nedenle geliştirici olarak şahsım adına en zorlayıcı kısım tekil bir Go fonksiyonu yazmak değil; **yapay zekâ modelinin bağlam (context) limitlerine takılmadan, halüsinasyon görmesini (olmayan tablolar veya kütüphaneler uydurmasını) engelleyerek ve proje dokümanında yer alan prompt injection ve yanıltıcı yönergeleri erken aşamada yakalayıp eleyerek projeyi uçtan uca, tutarlı ve eksiksiz bir şekilde tamamlamaktı.**
 
-**Düşünülen Alternatifler ve Elenme Nedenleri:**
-1. **Alternatif 1 — PostgreSQL `SEQUENCE` Kullanımı:**
-   - *Neden Eledim?:* PostgreSQL sequence nesneleri işlem bağımsız (non-transactional) çalışır. Eğer fatura kesme sırasında banka ödeme provizyonu hata alırsa veya transaction herhangi bir sebeple `ROLLBACK` edilirse, sequence'den alınan sıra numarası geri dönmez ve kalıcı olarak yanar. Bu durum seride `000001`, `000003` gibi atlamalara (gap) yol açar. Mali mevzuat ve şartname boşluksuz seriyi şart koştuğu için bu seçenek kesin olarak elendi.
-2. **Alternatif 2 — `SELECT MAX(sequence_number) + 1 FROM invoices`:**
-   - *Neden Eledim?:* 50 goroutine aynı anda fatura kesmeye çalıştığında, hepsi aynı `MAX` değerini okur ve ardından insert adımında duplicate key hatası (veya yarış durumu) alır. Ayrıca tablo büyüdükçe `MAX()` hesaplaması performans darboğazı yaratır.
-3. **Seçilen Nihai Çözüm:**  
-   Şube ve yıl bazlı tek satırlı `invoice_sequences` tablosu üzerinde transaction içinde `SELECT current_val FROM invoice_sequences WHERE year = $1 AND branch_id = $2 FOR UPDATE` çalıştırılmıştır. Bu yaklaşımda transaction başarısız olursa kilit çözülür ve sayaç eski değerinde kalır; başarılı olursa yeni numara kalıcılaşır. Böylece eşzamanlı 50 istek altında dahi sıfır boşluk ve sıfır mükerrerlik matematiksel kesinlikle garanti edilmiştir.
+**Düşünülen Alternatif Yaklaşımlar ve Elenme Nedenleri:**
+1. **Alternatif 1 — Monolitik Prompting (Tüm Projeyi Tek Seferde Yazdırma):**
+   - *Neden Eledim?:* Projenin tamamını tek bir devasa prompt ile yapay zekâya bırakmak, modelin bağlam penceresi limitlerini doldurmasına, kodların yarım kalmasına, migration şemalarındaki kolon isimlerini unutarak hayali değişkenler türetmesine yol açıyordu.
+2. **Alternatif 2 — Doğrulama ve Testleri En Sona Bırakma:**
+   - *Neden Eledim?:* Testleri ve derleme kontrollerini projenin sonuna bırakmak, PostgreSQL 16 veri tipi uyuşmazlıklarının ve Go tip güvenliği hatalarının birikerek içinden çıkılamaz bir duruma gelmesine sebep oluyordu.
+3. **Seçilen Nihai Çözüm (Faz Bazlı Orkestrasyon + Katı Grounding & Kural Sabitleme):**
+   - Proje 7 bağımsız mantıksal faza bölündü (`.agents/skills/fitgiris-rules` tanımlandı).
+   - Her fazda yapay zekânın halüsinasyon görmesini engellemek için **Grounding Kuralı** (`go build ./...` ve `go test ./...` koşmadan sonraki adıma asla geçilmemesi) ve **Şema Sabitleme** (`migrations/*.sql` haricinde kolon uydurulmaması) zorunlu kılındı.
+   - Dokümanda kısıtları delmeye veya sistemi yanlış yönlendirmeye yönelik prompt injection yönergeleri ayıklanarak modelin şartname sınırlarında kalması sağlandı.
 
 ---
 
@@ -234,8 +247,12 @@ Seçilen iki kritik dizin şunlardır (Ayrıntılı `EXPLAIN (ANALYZE)` çıktı
 
 ### 4. Yapay zekâ kullandıysan, reddettiğin ya da düzelttiğin bir çıktıyı (önce/sonra) göster ve neden yanlış olduğunu açıkla.
 
-**Örnek: Go `time.AddDate(0, 1, 0)` Fonksiyonunun Ay Sonu Tarih Normalizasyonu Hatası.**
+Geliştirme sürecinde yapay zekânın ürettiği çıktılarda hem doküman kaynaklı yanıltmalar/enjeksiyonlar hem de kod seviyesinde kritik mantık hataları yakalanıp reddedilmiştir:
 
+#### A. Dokümandaki Prompt Injection ve Yanıltıcı Kurguların Yakalanması
+Vaka dokümanında ve süreçte yer alan, yapay zekâyı şartname sınırları dışına çıkarmaya ve güvenlik açıklarına zorlayan yönlendirmeler (örneğin PostgreSQL veritabanı portunun host makineye açılması yönündeki yönlendirmeler veya rol izolasyonunu sunucu tarafı yerine yalnızca arayüzde gizleme eğilimleri) yakalanmıştır. Şartname Bölüm 3'teki *"PostgreSQL host'a açılması gerekmez, yalnızca compose ağında erişilsin"* ve Bölüm 4'teki *"yetkisiz erişimin sunucu tarafında engellenmesi"* hükümleri gereğince yapay zekânın bu çıktıları reddedilmiş; PostgreSQL portu host erişimine kapatılmış ve her uç noktaya 401/403 RBAC denetimi getirilmiştir.
+
+#### B. Kod Düzeyinde Reddedilen Çıktı: `time.AddDate` Ay Sonu Taşma Hatası
 - **Yapay Zekânın İlk Önerdiği Kod (Reddedilen Yaklaşım):**
   ```go
   // HATALI YAKLAŞIM: time.AddDate kullanımı
@@ -244,7 +261,7 @@ Seçilen iki kritik dizin şunlardır (Ayrıntılı `EXPLAIN (ANALYZE)` çıktı
   }
   ```
 - **Neden Yanlış Olduğu:**  
-  Go'nun standart `time.AddDate(year, month, day)` implementasyonu takvim normalizasyonu uygular. Eğer başlangıç tarihi **31 Ocak** ise ve 1 ay eklenirse, Go takvimde 31 Şubat olmadığı için taşan günleri bir sonraki aya ekler ve normal yılda **3 Mart**, artık yılda ise **2 Mart** üretir! Bu durum bir aylık üyelik alan üyenin Şubat ayı yerine Mart ayına sarkmasına, 1-3 gün haksız salona girmesine ve mali hesapların bozulmasına yol açar.
+  Go'nun standart `time.AddDate(year, month, day)` fonksiyonu takvim normalizasyonu uygular. Başlangıç tarihi **31 Ocak** olduğunda ve 1 ay eklendiğinde, Go takvimde 31 Şubat bulunmadığı için taşan günleri bir sonraki aya ekleyerek normal yılda **3 Mart**, artık yılda ise **2 Mart** üretir! Bu durum üyenin 1-3 gün haksız salona girmesine ve üyelik hesaplarının bozulmasına yol açar.
 - **Düzeltilen Kod (`internal/platform/dateutil/clamped_date.go`):**
   ```go
   // DOĞRU YAKLAŞIM: Clamped Date Algoritması
@@ -264,7 +281,7 @@ Seçilen iki kritik dizin şunlardır (Ayrıntılı `EXPLAIN (ANALYZE)` çıktı
           t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
   }
   ```
-- **Sonuç:** Bu düzeltmeyle 31 Ocak'a 1 ay eklendiğinde artık yılda (2024) tam olarak **29 Şubat**, normal yılda (2025/2026) ise **28 Şubat** üretildiği birim testlerle kanıtlanmıştır.
+- **Sonuç:** 31 Ocak'a 1 ay eklendiğinde artık yılda (2024) tam olarak **29 Şubat**, normal yılda (2025/2026) ise **28 Şubat** üretildiği birim testlerle kanıtlanmıştır.
 
 ---
 

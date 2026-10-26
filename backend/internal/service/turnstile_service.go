@@ -108,6 +108,13 @@ func (s *turnstileService) EvaluateAccess(ctx context.Context, req AccessRequest
 
 	if req.TurnstileID != nil && *req.TurnstileID != uuid.Nil {
 		turnstile, err = s.repo.GetTurnstileByID(ctx, *req.TurnstileID)
+		if turnstile == nil {
+			// Fallback: If caller passed branch_id as turnstile_id, look up active turnstile for branch
+			if branchGates, bErr := s.repo.ListTurnstiles(ctx, req.TurnstileID, true); bErr == nil && len(branchGates) > 0 {
+				turnstile = &branchGates[0]
+				err = nil
+			}
+		}
 	} else if req.TurnstileCode != "" && req.BranchID != nil {
 		turnstile, err = s.repo.GetTurnstileByBranchAndCode(ctx, *req.BranchID, req.TurnstileCode)
 	} else if req.TurnstileCode != "" {
