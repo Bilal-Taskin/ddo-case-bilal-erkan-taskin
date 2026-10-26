@@ -31,7 +31,7 @@ func (h *SwaggerHandler) ServeSwaggerUI(w http.ResponseWriter, r *http.Request) 
   <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" />
   <link rel="icon" type="image/png" href="https://unpkg.com/swagger-ui-dist@5.11.0/favicon-32x32.png" sizes="32x32" />
   <style>
-    body { margin: 0; background: #0f172a; }
+    body { margin: 0; background: #fafafa; }
     .swagger-ui .topbar { display: none; }
   </style>
 </head>

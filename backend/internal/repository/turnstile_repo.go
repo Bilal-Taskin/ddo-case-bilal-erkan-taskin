@@ -199,7 +199,6 @@ func (r *PostgresTurnstileRepository) ListTurnstiles(ctx context.Context, branch
 	if branchID != nil {
 		query += fmt.Sprintf(" AND t.branch_id = $%d", argIdx)
 		args = append(args, *branchID)
-		argIdx++
 	}
 	if activeOnly {
 		query += " AND t.is_active = true"

@@ -96,7 +96,7 @@ func (s *ptService) BookAppointment(ctx context.Context, memberID, ptPackageID, 
 		return nil, err
 	}
 	if tx != nil {
-		defer tx.Rollback(ctx)
+		defer func() { _ = tx.Rollback(ctx) }()
 	}
 
 	// Lock package for update
@@ -174,7 +174,7 @@ func (s *ptService) CancelAppointment(ctx context.Context, memberID, appointment
 		return err
 	}
 	if tx != nil {
-		defer tx.Rollback(ctx)
+		defer func() { _ = tx.Rollback(ctx) }()
 	}
 
 	app, err := s.ptRepo.GetAppointmentForUpdateTx(ctx, tx, appointmentID)
@@ -217,7 +217,7 @@ func (s *ptService) CompleteAppointment(ctx context.Context, appointmentID uuid.
 		return err
 	}
 	if tx != nil {
-		defer tx.Rollback(ctx)
+		defer func() { _ = tx.Rollback(ctx) }()
 	}
 
 	app, err := s.ptRepo.GetAppointmentForUpdateTx(ctx, tx, appointmentID)

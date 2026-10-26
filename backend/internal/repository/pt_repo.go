@@ -338,7 +338,6 @@ func (r *postgresPTRepository) ListAppointmentsByTrainer(ctx context.Context, tr
 	if to != nil {
 		query += fmt.Sprintf(" AND a.end_time <= $%d", argIdx)
 		args = append(args, *to)
-		argIdx++
 	}
 	query += " ORDER BY a.start_time ASC"
 

@@ -361,7 +361,6 @@ func (r *PostgresBookingRepository) ListSchedules(ctx context.Context, branchID 
 	if to != nil {
 		baseWhere += fmt.Sprintf(" AND s.start_time <= $%d", argIdx)
 		args = append(args, *to)
-		argIdx++
 	}
 
 	query := fmt.Sprintf(`
